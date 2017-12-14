@@ -3,6 +3,8 @@ from django.shortcuts import HttpResponse,render
 
 
 class MasterModel(object):
+    list_display = []
+
     def __init__(self,model_class,site):
         self.model_class = model_class
         self.site = site
@@ -22,15 +24,16 @@ class MasterModel(object):
         return urlpatterns
 
     def list_view(self,request,*args,**kwargs):
-        return HttpResponse("列表")
+        model_set = self.model_class.objects.all()
+        return render(request,"list.html",{"model_set":model_set})
 
     def add_view(self,request,*args,**kwargs):
         return HttpResponse("增加列表")
 
-    def edit_view(self,request,*args,**kwargs):
+    def edit_view(self,request,nid,*args,**kwargs):
         return HttpResponse("修改列表")
 
-    def delete_view(self,request,*args,**kwargs):
+    def delete_view(self,request,nid,*args,**kwargs):
         return HttpResponse("删除列表")
 
 
