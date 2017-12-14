@@ -25,7 +25,38 @@ class MasterModel(object):
 
     def list_view(self,request,*args,**kwargs):
         model_set = self.model_class.objects.all()
-        return render(request,"list.html",{"model_set":model_set})
+
+        def head_list():
+            """
+            处理表头
+            :return:[]
+            """
+            if self.list_display:
+                for filed_name in self.list_display:
+                    if isinstance(filed_name,str):
+                        verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
+                    else:
+                        verbose_name = filed_name(self,is_head=True)
+                    yield verbose_name
+
+        def data_list():
+            """
+            数据处理
+            :return:[]
+            """
+            for obj in model_set:
+                field_list = []
+                if self.list_display:
+                    for filed_name in self.list_display:
+                        if isinstance(filed_name,str):
+                            if hasattr(obj,filed_name):
+                                field_list.append(getattr(obj,filed_name))
+                        else:
+                            field_list.append(filed_name(self,obj))
+                else:
+                    field_list.append(obj)
+                yield field_list
+        return render(request,"list.html",{"model_set":data_list(),"head_list":head_list()})
 
     def add_view(self,request,*args,**kwargs):
         return HttpResponse("增加列表")

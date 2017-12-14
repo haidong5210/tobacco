@@ -1,3 +1,4 @@
+{% load staticfiles %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,14 +6,29 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Title</title>
+    <link rel="stylesheet" href="{% static 'bootstrap-3.3.7-dist/css/bootstrap.min.css' %}">
 </head>
 <body>
-    <table>
-        {% for model in model_set %}
+<div class="container">
+    <table class="table table-bordered">
+        <thead>
         <tr>
-            <td>{{ model }}</td>
+          {% for head_name in head_list %}
+                <th>{{ head_name }}</th>
+          {% endfor %}
         </tr>
+      </thead>
+        {% for model in model_set %}
+            <tr>
+                {% for filed in model %}
+                    <td>{{ filed }}</td>
+                {% endfor %}
+            </tr>
         {% endfor %}
     </table>
+</div>
+
+
 </body>
+
 </html>
