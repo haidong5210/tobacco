@@ -16,8 +16,8 @@ class MasterModel(object):
         urlpatterns =[
             url(r'^$',self.list_view,name="%s_%s_list"%app_model_name),
             url(r'^add/$',self.add_view,name="%s_%s_add"%app_model_name),
-            url(r'^(\d+)/edit$',self.edit_view,name="%s_%s_edit"%app_model_name),
-            url(r'^(\d+)/delete$',self.delete_view,name="%s_%s_delete"%app_model_name),
+            url(r'^(\d+)/edit/$',self.edit_view,name="%s_%s_edit"%app_model_name),
+            url(r'^(\d+)/delete/$',self.delete_view,name="%s_%s_delete"%app_model_name),
         ]
         return urlpatterns
 
@@ -32,6 +32,7 @@ class MasterModel(object):
 
     def delete_view(self,request,*args,**kwargs):
         return HttpResponse("删除列表")
+
 
 class MasterSite(object):
     def __init__(self):
