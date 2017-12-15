@@ -6,4 +6,4 @@ class WebmasterConfig(AppConfig):
     name = 'webmaster'
 
     def ready(self):
-        autodiscover_modules('webmaster')
+        autodiscover_modules('ad')
