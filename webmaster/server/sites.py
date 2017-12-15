@@ -1,13 +1,82 @@
 from django.conf.urls import url,include
 from django.shortcuts import HttpResponse,render
+from django.utils.safestring import mark_safe
+from django.urls import reverse
 
 
 class MasterModel(object):
     list_display = []
+    show_add_btn = True
 
     def __init__(self,model_class,site):
         self.model_class = model_class
         self.site = site
+
+    def get_list_display(self):
+        """
+        处理生成check，删除，编辑按钮
+        :return:
+        """
+        data = []
+        if self.list_display:
+            data.extend(self.list_display)
+            data.append(MasterModel.edit)
+            data.append(MasterModel.delete)
+            data.insert(0, MasterModel.check)
+        return data
+
+    def edit(self,obj=None,is_head=False):
+        if is_head:
+            return "操作"
+        return mark_safe("<a href='%s'>编辑</a>"%self.get_edit_url(obj.id))
+
+    def delete(self,obj=None,is_head=False):
+        if is_head:
+            return "操作"
+        return mark_safe("<a href='%s'>删除</a>"%self.get_delete_url(obj.id))
+
+    def check(self,obj=None,is_head=False):
+        if is_head:
+            return "#"
+        return mark_safe('<input type="checkbox" name="%s">'%obj.id)
+
+    def get_edit_url(self,nid):
+        """
+        反向生成修改的url
+        :param nid:
+        :return:
+        """
+        name = "tobacco:%s_%s_edit" % (self.model_class._meta.app_label, self.model_class._meta.model_name)
+        current_url = reverse(name, args=(nid,))
+        return current_url
+
+    def get_list_url(self):
+        """
+        反向生成列表的url
+        :return:
+        """
+        name = "tobacco:%s_%s_list" % (self.model_class._meta.app_label, self.model_class._meta.model_name)
+        current_url = reverse(name)
+        return current_url
+
+    def get_add_url(self):
+        """
+        反向生成添加的url
+        :return:
+        """
+        name = "tobacco:%s_%s_add" % (self.model_class._meta.app_label, self.model_class._meta.model_name)
+        current_url = reverse(name)
+        return current_url
+
+    def get_delete_url(self,nid):
+        """
+        反向生成删除的url
+        :param nid:
+        :return:
+        """
+        name = "tobacco:%s_%s_delete" % (self.model_class._meta.app_label, self.model_class._meta.model_name)
+        current_url = reverse(name,args=(nid,))
+        return current_url
 
     @property
     def urls(self):
@@ -21,7 +90,18 @@ class MasterModel(object):
             url(r'^(\d+)/edit/$',self.edit_view,name="%s_%s_edit"%app_model_name),
             url(r'^(\d+)/delete/$',self.delete_view,name="%s_%s_delete"%app_model_name),
         ]
+        urlpatterns.extend(self.extr_urls())
         return urlpatterns
+
+    def extr_urls(self):
+        """
+        自定义添加的url
+        :return:[url(.......),url(.......),]
+        """
+        return []
+
+    def get_add_btn(self):
+        return self.show_add_btn
 
     def list_view(self,request,*args,**kwargs):
         model_set = self.model_class.objects.all()
@@ -31,8 +111,8 @@ class MasterModel(object):
             处理表头
             :return:[]
             """
-            if self.list_display:
-                for filed_name in self.list_display:
+            if self.get_list_display():
+                for filed_name in self.get_list_display():
                     if isinstance(filed_name,str):
                         verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
                     else:
@@ -46,8 +126,8 @@ class MasterModel(object):
             """
             for obj in model_set:
                 field_list = []
-                if self.list_display:
-                    for filed_name in self.list_display:
+                if self.get_list_display():
+                    for filed_name in self.get_list_display():
                         if isinstance(filed_name,str):
                             if hasattr(obj,filed_name):
                                 field_list.append(getattr(obj,filed_name))
@@ -56,7 +136,8 @@ class MasterModel(object):
                 else:
                     field_list.append(obj)
                 yield field_list
-        return render(request,"list.html",{"model_set":data_list(),"head_list":head_list()})
+        return render(request,"list.html",{"model_set":data_list(),"head_list":head_list(),
+                                           "add_url":self.get_add_url(),"is_add":self.get_add_btn()})
 
     def add_view(self,request,*args,**kwargs):
         return HttpResponse("增加列表")

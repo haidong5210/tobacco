@@ -10,6 +10,10 @@
 </head>
 <body>
 <div class="container">
+    <h3>列表展示</h3>
+    {% if is_add %}
+        <a href="{{ add_url }}" class="btn btn-success">添加</a>
+    {% endif %}
     <table class="table table-bordered">
         <thead>
         <tr>
