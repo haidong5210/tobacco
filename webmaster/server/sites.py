@@ -1,5 +1,5 @@
 from django.conf.urls import url,include
-from django.shortcuts import HttpResponse,render
+from django.shortcuts import HttpResponse,render,redirect
 from django.utils.safestring import mark_safe
 from django.urls import reverse
 
@@ -146,7 +146,11 @@ class MasterModel(object):
         return HttpResponse("修改列表")
 
     def delete_view(self,request,nid,*args,**kwargs):
-        return HttpResponse("删除列表")
+        if request.method == "GET":
+            return render(request,"delete.html")
+        else:
+            self.model_class.objects.filter(pk=nid).delete()
+            return redirect(self.get_list_url())
 
 
 class MasterSite(object):
