@@ -165,7 +165,18 @@ class MasterModel(object):
                 return render(request, "add.html", {"form": form})
 
     def edit_view(self,request,nid,*args,**kwargs):
-        return HttpResponse("修改列表")
+        model_form_class = self.get_model_form_class()
+        obj = self.model_class.objects.filter(pk=nid).first()
+        if request.method == "GET":
+            form = model_form_class(instance=obj)
+            return render(request,"edit.html",{"form":form})
+        else:
+            form = model_form_class(instance=obj,data=request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect(self.get_list_url())
+            else:
+                return render(request, "edit.html", {"form": form})
 
     def delete_view(self,request,nid,*args,**kwargs):
         if request.method == "GET":
