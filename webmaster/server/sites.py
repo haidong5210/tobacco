@@ -8,6 +8,7 @@ from django.forms import ModelForm
 class MasterModel(object):
     list_display = []
     show_add_btn = True
+    model_form_class = None
 
     def __init__(self,model_class,site):
         self.model_class = model_class
@@ -104,6 +105,16 @@ class MasterModel(object):
     def get_add_btn(self):
         return self.show_add_btn
 
+    def get_model_form_class(self):
+        if not self.model_form_class:
+            class List(ModelForm):
+                class Meta:
+                    model = self.model_class
+                    fields = "__all__"
+            return List
+        else:
+            return self.model_form_class
+
     def list_view(self,request,*args,**kwargs):
         model_set = self.model_class.objects.all()
 
@@ -141,15 +152,12 @@ class MasterModel(object):
                                            "add_url":self.get_add_url(),"is_add":self.get_add_btn()})
 
     def add_view(self,request,*args,**kwargs):
-        class List(ModelForm):
-            class Meta:
-                model = self.model_class
-                fields = "__all__"
+        model_form_class = self.get_model_form_class()
         if request.method == "GET":
-            form = List()
+            form = model_form_class()
             return render(request,"add.html",{"form":form})
         else:
-            form = List(request.POST)
+            form = model_form_class(request.POST)
             if form.is_valid():
                 form.save()
                 return redirect(self.get_list_url())
