@@ -1,6 +1,6 @@
 from django.conf.urls import url
-from webmaster.server import ad
+from webmaster.server import sites
 
 urlpatterns = [
-    url(r'^haidong/', ad.site.urls),
+    url(r'^haidong/', sites.site.urls),
 ]
