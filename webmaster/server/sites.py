@@ -2,6 +2,7 @@ from django.conf.urls import url,include
 from django.shortcuts import HttpResponse,render,redirect
 from django.utils.safestring import mark_safe
 from django.urls import reverse
+from django.forms import ModelForm
 
 
 class MasterModel(object):
@@ -140,7 +141,20 @@ class MasterModel(object):
                                            "add_url":self.get_add_url(),"is_add":self.get_add_btn()})
 
     def add_view(self,request,*args,**kwargs):
-        return HttpResponse("增加列表")
+        class List(ModelForm):
+            class Meta:
+                model = self.model_class
+                fields = "__all__"
+        if request.method == "GET":
+            form = List()
+            return render(request,"add.html",{"form":form})
+        else:
+            form = List(request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect(self.get_list_url())
+            else:
+                return render(request, "add.html", {"form": form})
 
     def edit_view(self,request,nid,*args,**kwargs):
         return HttpResponse("修改列表")
