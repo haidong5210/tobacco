@@ -9,6 +9,13 @@ class MyMasterModel(sites.MasterModel):
     list_display = ["id","username","password","email"]
     condition_list = ["username__contains","email__contains"]
     show_search_input = True
+
+    def del_catch(self,request):
+        pk_list = request.POST.getlist("pk")
+        models.UserInfo.objects.filter(id__in=pk_list).delete()
+    del_catch.text="批量删除"
+    catch_list = [del_catch,]
+    show_catch = True
 sites.site.register(models.UserInfo, MyMasterModel)
 sites.site.register(models.UserType)
 

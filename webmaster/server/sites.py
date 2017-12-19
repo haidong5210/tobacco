@@ -10,15 +10,29 @@ from django.db.models import Q
 
 class PacListView(object):
     def __init__(self,master_obj,model_set):
-        self.master_obj = master_obj
+        self.master_obj = master_obj                         # 下面的MasterModel的对象
+        self.model_set = model_set                           # 对象的表所有数据
         self.get_list_display = master_obj.get_list_display()
         self.model_class = master_obj.model_class
-        self.model_set = model_set
         self.request = master_obj.request
         pager_obj = Pagination(self.request.GET.get('page', 1), len(self.model_set), self.request.path_info,
                            self.request.GET, per_page_count=3)
-        self.pager_obj = pager_obj
-        self.show_search_input = master_obj.get_show_search_input()
+        self.pager_obj = pager_obj                                     #分页组件的对象
+        self.show_search_input = master_obj.get_show_search_input()     #是否展示搜索框
+        self.condition_value = master_obj.request.GET.get("condition", "")  # 在url上直接写搜索条件，显示在input框上用到
+        self.get_catch_list = master_obj.get_catch_list()             #得到批量操作的列表
+        self.show_catch = master_obj.get_show_catch()                 #是否展示批量操作框
+
+    def get_catch(self):
+        """
+        处理批量操作的显示在前端的内容，函数名和函数的自定义text
+        :return:
+        """
+        result = []
+        for func in self.get_catch_list:
+            temp = {"name":func.__name__,"text":func.text}
+            result.append(temp)
+        return result
 
     def head_list(self):
         # 处理表头
@@ -58,11 +72,13 @@ class PacListView(object):
 
 
 class MasterModel(object):
-    list_display = []
-    condition_list = []
+    list_display = []      #显示那几个列，字段
+    condition_list = []    #搜索对应的字段
+    catch_list = []        #批量执行那个操作
     show_add_btn = True
     model_form_class = None
     show_search_input = False
+    show_catch = False
 
     def __init__(self,model_class,site):
         self.model_class = model_class
@@ -97,7 +113,7 @@ class MasterModel(object):
     def check(self,obj=None,is_head=False):
         if is_head:
             return "#"
-        return mark_safe('<input type="checkbox" name="%s">'%obj.id)
+        return mark_safe('<input type="checkbox" name="pk" value="%s">'%obj.id)
 
     def get_edit_url(self,nid):
         """
@@ -192,7 +208,7 @@ class MasterModel(object):
 
     def get_condition(self):
         """
-        得到搜索的字段
+        得到搜索的字段条件，利用Q
         :return:con
         """
         condition = self.request.GET.get("condition")
@@ -211,11 +227,34 @@ class MasterModel(object):
         if self.show_search_input:
             return self.show_search_input
 
+    def get_catch_list(self):
+        result = []
+        if self.catch_list:
+            result.extend(self.catch_list)
+        return result
+
+    def get_show_catch(self):
+        if self.show_catch:
+            return self.show_catch
+
     def list_view(self,request,*args,**kwargs):
+        """
+        展示页面
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
         self.parm = QueryDict(mutable=True)
         self.parm[self.url_encode_key] = self.request.GET.urlencode()
+        if request.method == "POST" and self.get_show_catch():
+            func_str = request.POST.get("list_action")
+            catch_func = getattr(self,func_str)
+            ret = catch_func(request)
+            if ret:
+                return ret
         model_set = self.model_class.objects.filter(self.get_condition())
-        list_view_obj = PacListView(self,model_set)
+        list_view_obj = PacListView(self,model_set)                       #封装的那个对象，只传对象到前端
         return render(request,"list.html",{"list_view_obj":list_view_obj})
 
     def add_view(self,request,*args,**kwargs):

@@ -18,29 +18,40 @@
         <form class="form-inline" method="get" novalidate>
         <div class="form-group">
             <div class="form-group">
-                <input type="text" class="form-control" placeholder="请输入搜索条件" name="condition">
+                <input type="text" class="form-control" placeholder="请输入搜索条件" name="condition" value="{{ list_view_obj.condition_value }}">
             </div>
         </div>
         <button type="submit" class="btn btn-primary"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
     </form>
     {% endif %}
-
-    <table class="table table-bordered">
-        <thead>
-        <tr>
-            {% for head_name in list_view_obj.head_list %}
-                <th>{{ head_name }}</th>
-            {% endfor %}
-        </tr>
-        </thead>
-        {% for model in list_view_obj.data_list %}
-            <tr>
-                {% for filed in model %}
-                    <td>{{ filed }}</td>
+    <form method="post">
+        {% csrf_token %}
+        {% if list_view_obj.show_catch %}
+            <select class="form-control" style="width: 200px;display: inline-block" name="list_action">
+                {% for catch_dict in list_view_obj.get_catch %}
+                    <option value="{{ catch_dict.name }}">{{ catch_dict.text }}</option>
                 {% endfor %}
-            </tr>
-        {% endfor %}
-    </table>
+            </select>
+            <input type="submit" class="btn" value="执行">
+        {% endif %}
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    {% for head_name in list_view_obj.head_list %}
+                        <th>{{ head_name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            {% for model in list_view_obj.data_list %}
+                <tr>
+                    {% for filed in model %}
+                        <td>{{ filed }}</td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </table>
+    </form>
     <div style="margin-left: 35%">
         {{ list_view_obj.pager_obj.page_html|safe }}
     </div>
