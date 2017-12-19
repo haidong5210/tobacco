@@ -11,18 +11,18 @@
 <body>
 <div class="container">
     <h3>列表展示</h3>
-    {% if is_add %}
-        <a href="{{ add_url }}" class="btn btn-success">添加</a>
+    {% if list_view_obj.is_add %}
+        <a href="{{ list_view_obj.add_url }}" class="btn btn-success">添加</a>
     {% endif %}
     <table class="table table-bordered">
         <thead>
         <tr>
-          {% for head_name in head_list %}
+          {% for head_name in list_view_obj.head_list %}
                 <th>{{ head_name }}</th>
           {% endfor %}
         </tr>
       </thead>
-        {% for model in model_set %}
+        {% for model in list_view_obj.data_list %}
             <tr>
                 {% for filed in model %}
                     <td>{{ filed }}</td>
@@ -31,7 +31,7 @@
         {% endfor %}
     </table>
 <div style="margin-left: 35%">
-    {{ html|safe }}
+    {{ list_view_obj.pager_obj.page_html|safe }}
 </div>
 </div>
 

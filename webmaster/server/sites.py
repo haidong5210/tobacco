@@ -7,6 +7,54 @@ from tobacco.page.pager1 import Pagination
 from django.http import QueryDict
 
 
+class PacListView(object):
+    def __init__(self,master_obj,model_set):
+        self.master_obj = master_obj
+        self.get_list_display = master_obj.get_list_display()
+        self.model_class = master_obj.model_class
+        self.model_set = model_set
+        self.request = master_obj.request
+        pager_obj = Pagination(self.request.GET.get('page', 1), len(self.model_set), self.request.path_info,
+                           self.request.GET, per_page_count=3)
+        self.pager_obj = pager_obj
+
+    def head_list(self):
+        # 处理表头
+        head_list = []
+        if self.get_list_display:
+            for filed_name in self.get_list_display:
+                if isinstance(filed_name, str):
+                    verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
+                else:
+                    verbose_name = filed_name(self, is_head=True)
+                head_list.append(verbose_name)
+        return head_list
+
+    def data_list(self):
+        # 处理数据
+        data_list = []
+        for obj in self.model_set:
+            field_list = []
+            if self.get_list_display:
+                for filed_name in self.get_list_display:
+                    if isinstance(filed_name, str):
+                        if hasattr(obj, filed_name):
+                            field_list.append(getattr(obj, filed_name))
+                    else:
+                        field_list.append(filed_name(self.master_obj, obj))
+            else:
+                field_list.append(obj)
+            data_list.append(field_list)
+        return data_list[self.pager_obj.start:self.pager_obj.end]
+
+    def add_url(self):
+        add_url = "%s?%s" % (self.master_obj.get_add_url(),self.master_obj.parm.urlencode())
+        return add_url
+
+    def is_add(self):
+        return self.master_obj.get_add_btn()
+
+
 class MasterModel(object):
     list_display = []
     show_add_btn = True
@@ -136,37 +184,8 @@ class MasterModel(object):
         self.parm = QueryDict(mutable=True)
         self.parm[self.url_encode_key] = self.request.GET.urlencode()
         model_set = self.model_class.objects.all()
-        #处理表头
-        head_list = []
-        if self.get_list_display():
-            for filed_name in self.get_list_display():
-                if isinstance(filed_name,str):
-                    verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
-                else:
-                    verbose_name = filed_name(self,is_head=True)
-                head_list.append(verbose_name)
-        #处理数据
-        data_list = []
-        for obj in model_set:
-            field_list = []
-            if self.get_list_display():
-                for filed_name in self.get_list_display():
-                    if isinstance(filed_name,str):
-                        if hasattr(obj,filed_name):
-                            field_list.append(getattr(obj,filed_name))
-                    else:
-                        field_list.append(filed_name(self,obj))
-            else:
-                field_list.append(obj)
-            data_list.append(field_list)
-        #分页
-        pager_obj = Pagination(request.GET.get('page', 1), len(model_set), request.path_info, request.GET,
-                                   per_page_count=3)
-        host_list = data_list[pager_obj.start:pager_obj.end]
-        html = pager_obj.page_html()
-        add_url = "%s?%s"%(self.get_add_url(),self.parm.urlencode())
-        return render(request,"list.html",{"model_set":host_list,"head_list":head_list,
-                                           "add_url":add_url,"is_add":self.get_add_btn(),"html":html})
+        list_view_obj = PacListView(self,model_set)
+        return render(request,"list.html",{"list_view_obj":list_view_obj})
 
     def add_view(self,request,*args,**kwargs):
         model_form_class = self.get_model_form_class()
