@@ -3,6 +3,8 @@ from django.shortcuts import HttpResponse,render,redirect
 from django.utils.safestring import mark_safe
 from django.urls import reverse
 from django.forms import ModelForm
+from tobacco.page.pager1 import Pagination
+from django.http import QueryDict
 
 
 class MasterModel(object):
@@ -13,6 +15,9 @@ class MasterModel(object):
     def __init__(self,model_class,site):
         self.model_class = model_class
         self.site = site
+        self.request = None
+        self.parm = None
+        self.url_encode_key = "_listfilter"
 
     def get_list_display(self):
         """
@@ -30,12 +35,12 @@ class MasterModel(object):
     def edit(self,obj=None,is_head=False):
         if is_head:
             return "操作"
-        return mark_safe("<a href='%s'>编辑</a>"%self.get_edit_url(obj.id))
+        return mark_safe("<a href='%s?%s'>编辑</a>"%(self.get_edit_url(obj.id),self.parm.urlencode()))
 
     def delete(self,obj=None,is_head=False):
         if is_head:
             return "操作"
-        return mark_safe("<a href='%s'>删除</a>"%self.get_delete_url(obj.id))
+        return mark_safe("<a href='%s?%s'>删除</a>"%(self.get_delete_url(obj.id),self.parm.urlencode()))
 
     def check(self,obj=None,is_head=False):
         if is_head:
@@ -84,13 +89,25 @@ class MasterModel(object):
     def urls(self):
         return self.get_url()
 
+    def wrap(self, view_func):
+        """
+        装饰器
+        给self.request赋值
+        :param view_func:
+        :return:
+        """
+        def inner(request, *args, **kwargs):
+            self.request = request
+            return view_func(request, *args, **kwargs)
+        return inner
+
     def get_url(self):
         app_model_name = (self.model_class._meta.app_label,self.model_class._meta.model_name)
         urlpatterns =[
-            url(r'^$',self.list_view,name="%s_%s_list"%app_model_name),
-            url(r'^add/$',self.add_view,name="%s_%s_add"%app_model_name),
-            url(r'^(\d+)/edit/$',self.edit_view,name="%s_%s_edit"%app_model_name),
-            url(r'^(\d+)/delete/$',self.delete_view,name="%s_%s_delete"%app_model_name),
+            url(r'^$',self.wrap(self.list_view),name="%s_%s_list"%app_model_name),
+            url(r'^add/$',self.wrap(self.add_view),name="%s_%s_add"%app_model_name),
+            url(r'^(\d+)/edit/$',self.wrap(self.edit_view),name="%s_%s_edit"%app_model_name),
+            url(r'^(\d+)/delete/$',self.wrap(self.delete_view),name="%s_%s_delete"%app_model_name),
         ]
         urlpatterns.extend(self.extr_urls())
         return urlpatterns
@@ -116,40 +133,40 @@ class MasterModel(object):
             return self.model_form_class
 
     def list_view(self,request,*args,**kwargs):
+        self.parm = QueryDict(mutable=True)
+        self.parm[self.url_encode_key] = self.request.GET.urlencode()
         model_set = self.model_class.objects.all()
-
-        def head_list():
-            """
-            处理表头
-            :return:[]
-            """
+        #处理表头
+        head_list = []
+        if self.get_list_display():
+            for filed_name in self.get_list_display():
+                if isinstance(filed_name,str):
+                    verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
+                else:
+                    verbose_name = filed_name(self,is_head=True)
+                head_list.append(verbose_name)
+        #处理数据
+        data_list = []
+        for obj in model_set:
+            field_list = []
             if self.get_list_display():
                 for filed_name in self.get_list_display():
                     if isinstance(filed_name,str):
-                        verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
+                        if hasattr(obj,filed_name):
+                            field_list.append(getattr(obj,filed_name))
                     else:
-                        verbose_name = filed_name(self,is_head=True)
-                    yield verbose_name
-
-        def data_list():
-            """
-            数据处理
-            :return:[]
-            """
-            for obj in model_set:
-                field_list = []
-                if self.get_list_display():
-                    for filed_name in self.get_list_display():
-                        if isinstance(filed_name,str):
-                            if hasattr(obj,filed_name):
-                                field_list.append(getattr(obj,filed_name))
-                        else:
-                            field_list.append(filed_name(self,obj))
-                else:
-                    field_list.append(obj)
-                yield field_list
-        return render(request,"list.html",{"model_set":data_list(),"head_list":head_list(),
-                                           "add_url":self.get_add_url(),"is_add":self.get_add_btn()})
+                        field_list.append(filed_name(self,obj))
+            else:
+                field_list.append(obj)
+            data_list.append(field_list)
+        #分页
+        pager_obj = Pagination(request.GET.get('page', 1), len(model_set), request.path_info, request.GET,
+                                   per_page_count=3)
+        host_list = data_list[pager_obj.start:pager_obj.end]
+        html = pager_obj.page_html()
+        add_url = "%s?%s"%(self.get_add_url(),self.parm.urlencode())
+        return render(request,"list.html",{"model_set":host_list,"head_list":head_list,
+                                           "add_url":add_url,"is_add":self.get_add_btn(),"html":html})
 
     def add_view(self,request,*args,**kwargs):
         model_form_class = self.get_model_form_class()
@@ -160,7 +177,8 @@ class MasterModel(object):
             form = model_form_class(request.POST)
             if form.is_valid():
                 form.save()
-                return redirect(self.get_list_url())
+                list_url = "%s?%s"%(self.get_list_url(),self.request.GET.get(self.url_encode_key))
+                return redirect(list_url)
             else:
                 return render(request, "add.html", {"form": form})
 
@@ -174,7 +192,8 @@ class MasterModel(object):
             form = model_form_class(instance=obj,data=request.POST)
             if form.is_valid():
                 form.save()
-                return redirect(self.get_list_url())
+                list_url = "%s?%s" % (self.get_list_url(), self.request.GET.get(self.url_encode_key))
+                return redirect(list_url)
             else:
                 return render(request, "edit.html", {"form": form})
 
@@ -183,7 +202,8 @@ class MasterModel(object):
             return render(request,"delete.html")
         else:
             self.model_class.objects.filter(pk=nid).delete()
-            return redirect(self.get_list_url())
+            list_url = "%s?%s" % (self.get_list_url(), self.request.GET.get(self.url_encode_key))
+            return redirect(list_url)
 
 
 class MasterSite(object):
