@@ -14,14 +14,25 @@
     {% if list_view_obj.is_add %}
         <a href="{{ list_view_obj.add_url }}" class="btn btn-success">添加</a>
     {% endif %}
+    {% if list_view_obj.show_search_input %}
+        <form class="form-inline" method="get" novalidate>
+        <div class="form-group">
+            <div class="form-group">
+                <input type="text" class="form-control" placeholder="请输入搜索条件" name="condition">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
+    </form>
+    {% endif %}
+
     <table class="table table-bordered">
         <thead>
         <tr>
-          {% for head_name in list_view_obj.head_list %}
+            {% for head_name in list_view_obj.head_list %}
                 <th>{{ head_name }}</th>
-          {% endfor %}
+            {% endfor %}
         </tr>
-      </thead>
+        </thead>
         {% for model in list_view_obj.data_list %}
             <tr>
                 {% for filed in model %}
@@ -30,9 +41,9 @@
             </tr>
         {% endfor %}
     </table>
-<div style="margin-left: 35%">
-    {{ list_view_obj.pager_obj.page_html|safe }}
-</div>
+    <div style="margin-left: 35%">
+        {{ list_view_obj.pager_obj.page_html|safe }}
+    </div>
 </div>
 
 

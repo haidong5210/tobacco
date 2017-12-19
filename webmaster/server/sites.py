@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.forms import ModelForm
 from tobacco.page.pager1 import Pagination
 from django.http import QueryDict
+from django.db.models import Q
 
 
 class PacListView(object):
@@ -17,6 +18,7 @@ class PacListView(object):
         pager_obj = Pagination(self.request.GET.get('page', 1), len(self.model_set), self.request.path_info,
                            self.request.GET, per_page_count=3)
         self.pager_obj = pager_obj
+        self.show_search_input = master_obj.get_show_search_input()
 
     def head_list(self):
         # 处理表头
@@ -26,7 +28,7 @@ class PacListView(object):
                 if isinstance(filed_name, str):
                     verbose_name = self.model_class._meta.get_field(filed_name).verbose_name
                 else:
-                    verbose_name = filed_name(self, is_head=True)
+                    verbose_name = filed_name(self.master_obj, is_head=True)
                 head_list.append(verbose_name)
         return head_list
 
@@ -57,8 +59,10 @@ class PacListView(object):
 
 class MasterModel(object):
     list_display = []
+    condition_list = []
     show_add_btn = True
     model_form_class = None
+    show_search_input = False
 
     def __init__(self,model_class,site):
         self.model_class = model_class
@@ -180,10 +184,37 @@ class MasterModel(object):
         else:
             return self.model_form_class
 
+    def get_condition_list(self):
+        result = []
+        if self.condition_list:
+            result.extend(self.condition_list)
+        return result
+
+    def get_condition(self):
+        """
+        得到搜索的字段
+        :return:con
+        """
+        condition = self.request.GET.get("condition")
+        con = Q()
+        con.connector = "or"
+        if condition and self.get_show_search_input():
+            for condition_field in self.get_condition_list():
+                con.children.append((condition_field,condition))
+        return con
+
+    def get_show_search_input(self):
+        """
+        自定义是否显示搜索框，默认不显示
+        :return:
+        """
+        if self.show_search_input:
+            return self.show_search_input
+
     def list_view(self,request,*args,**kwargs):
         self.parm = QueryDict(mutable=True)
         self.parm[self.url_encode_key] = self.request.GET.urlencode()
-        model_set = self.model_class.objects.all()
+        model_set = self.model_class.objects.filter(self.get_condition())
         list_view_obj = PacListView(self,model_set)
         return render(request,"list.html",{"list_view_obj":list_view_obj})
 

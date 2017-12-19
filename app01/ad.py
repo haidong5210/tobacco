@@ -7,6 +7,8 @@ from django.forms import ModelForm
 
 class MyMasterModel(sites.MasterModel):
     list_display = ["id","username","password","email"]
+    condition_list = ["username__contains","email__contains"]
+    show_search_input = True
 sites.site.register(models.UserInfo, MyMasterModel)
 sites.site.register(models.UserType)
 
