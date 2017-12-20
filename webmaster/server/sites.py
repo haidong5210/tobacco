@@ -1,3 +1,4 @@
+import copy
 from django.conf.urls import url,include
 from django.shortcuts import HttpResponse,render,redirect
 from django.utils.safestring import mark_safe
@@ -6,12 +7,93 @@ from django.forms import ModelForm
 from tobacco.page.pager1 import Pagination
 from django.http import QueryDict
 from django.db.models import Q
+from django.db.models import ForeignKey,ManyToManyField
+
+
+class PacComb:
+    """
+    对comb_list的数据封装的类
+    """
+    def __init__(self,field_name,multi=False,condition=None,is_choice=False):
+        """
+        封装comb_list内的数据
+        :param field_name: 字段名
+        :param multi:  是否多选
+        :param condition: 显示多少的条件
+        :param is_choice: 是否是choice字段
+        """
+        self.field_name = field_name
+        self.multi = multi
+        self.condition = condition
+        self.is_choice = is_choice
+
+    def get_queryset(self,_field):
+        if not self.condition:
+            return _field.rel.to.objects.all()
+        else:
+            return _field.rel.to.objects.filter(**self.condition)
+
+    def get_choice(self,_field):
+        return _field.choices
+
+
+class FilterRow:
+    """
+    返回到前端的样式，可迭代对象
+    """
+    def __init__(self,paccomb_obj, data, request):
+        """
+        :param paccomb_obj: comb——list里存的PacComb的对象
+        :param data:  对应字段的所有信息
+        :param request:为了得到request.GET
+        """
+        self.comb_obj = paccomb_obj
+        self.data = data
+        self.request = request
+
+    def __iter__(self):
+        current_id = self.request.GET.get(self.comb_obj.field_name)
+        path = self.request.path
+        param = copy.deepcopy(self.request.GET)
+        param._mutable = True
+        if self.comb_obj.field_name in param:
+            val = param.pop(self.comb_obj.field_name)
+            yield mark_safe('<a href="%s?%s">全部</a>'%(path,param.urlencode()))
+            param.setlist(self.comb_obj.field_name, val)
+        else:
+            yield mark_safe('<a class="active" href="%s?%s">全部</a>' % (path, param.urlencode()))
+        for item in self.data:
+            if self.comb_obj.is_choice:
+                pk, text = str(item[0]), item[1]
+            else:
+                pk, text = str(item.pk), str(item)
+            if not self.comb_obj.multi:
+                param[self.comb_obj.field_name] = pk
+                if current_id == pk:
+                    yield mark_safe('<a class="active" href="%s?%s">%s</a>'%(path,param.urlencode(),text))
+                else:
+                    yield mark_safe('<a href="%s?%s">%s</a>' % (path, param.urlencode(), text))
+            else:
+                _params = copy.deepcopy(param)
+                id_list = _params.getlist(self.comb_obj.field_name)
+                if pk in id_list:
+                    id_list.remove(pk)
+                    _params.setlist(self.comb_obj.field_name,id_list)
+                    yield mark_safe('<a class="active" href="%s?%s">%s</a>' % (path, _params.urlencode(), text))
+                else:
+                    id_list.append(pk)
+                    _params.setlist(self.comb_obj.field_name, id_list)
+                    yield mark_safe('<a href="%s?%s">%s</a>' % (path, _params.urlencode(), text))
 
 
 class PacListView(object):
+    """
+    封装list_view
+    """
     def __init__(self,master_obj,model_set):
         self.master_obj = master_obj                         # 下面的MasterModel的对象
         self.model_set = model_set                           # 对象的表所有数据
+
         self.get_list_display = master_obj.get_list_display()
         self.model_class = master_obj.model_class
         self.request = master_obj.request
@@ -22,6 +104,7 @@ class PacListView(object):
         self.condition_value = master_obj.request.GET.get("condition", "")  # 在url上直接写搜索条件，显示在input框上用到
         self.get_catch_list = master_obj.get_catch_list()             #得到批量操作的列表
         self.show_catch = master_obj.get_show_catch()                 #是否展示批量操作框
+        self.comb_list = master_obj.get_comb_list()                   #组合搜索
 
     def get_catch(self):
         """
@@ -70,11 +153,27 @@ class PacListView(object):
     def is_add(self):
         return self.master_obj.get_add_btn()
 
+    def combinatorial(self):
+        """
+        通过数据库操作返回每个表中的数据
+        :return:
+        """
+        for paccomb_obj in self.comb_list:
+            _field = self.model_class._meta.get_field(paccomb_obj.field_name)
+            if isinstance(_field,ForeignKey):
+                row = FilterRow(paccomb_obj,paccomb_obj.get_queryset(_field),self.request)
+            elif isinstance(_field,ManyToManyField):
+                row = FilterRow(paccomb_obj,paccomb_obj.get_queryset(_field),self.request)
+            else:
+                row = FilterRow(paccomb_obj,paccomb_obj.get_choice(_field),self.request)
+            yield row
+
 
 class MasterModel(object):
     list_display = []      #显示那几个列，字段
     condition_list = []    #搜索对应的字段
     catch_list = []        #批量执行那个操作
+    comb_list = []          #组合搜索
     show_add_btn = True
     model_form_class = None
     show_search_input = False
@@ -237,6 +336,12 @@ class MasterModel(object):
         if self.show_catch:
             return self.show_catch
 
+    def get_comb_list(self):
+        result = []
+        if self.comb_list:
+            result.extend(self.comb_list)
+        return result
+
     def list_view(self,request,*args,**kwargs):
         """
         展示页面
@@ -253,7 +358,19 @@ class MasterModel(object):
             ret = catch_func(request)
             if ret:
                 return ret
-        model_set = self.model_class.objects.filter(self.get_condition())
+        #处理搜索
+        comb_condition = {}
+        option_list = self.get_comb_list()
+        for key in request.GET.keys():
+            value_list = request.GET.getlist(key)
+            flag = False
+            for option in option_list:
+                if option.field_name == key:
+                    flag = True
+                    break
+            if flag:
+                comb_condition["%s__in" % key] = value_list
+        model_set = self.model_class.objects.filter(self.get_condition()).filter(**comb_condition).distinct()
         list_view_obj = PacListView(self,model_set)                       #封装的那个对象，只传对象到前端
         return render(request,"list.html",{"list_view_obj":list_view_obj})
 

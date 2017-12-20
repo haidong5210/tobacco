@@ -7,10 +7,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Title</title>
     <link rel="stylesheet" href="{% static 'bootstrap-3.3.7-dist/css/bootstrap.min.css' %}">
+    <style>
+        .filterow a{
+            display: inline-block;
+            padding: 3px 6px;
+            border: 1px solid cornsilk;
+            margin: 2px;
+        }
+        .filterow a.active{
+            background-color: blue;
+            color: white;
+        }
+    </style>
 </head>
 <body>
 <div class="container">
     <h3>列表展示</h3>
+    <div class="filterow">
+        {% for queryset in list_view_obj.combinatorial %}
+            <div>
+                {% for foo in queryset %}
+                    {{ foo }}
+                {% endfor %}
+            </div>
+        {% endfor %}
+
+    </div>
     {% if list_view_obj.is_add %}
         <a href="{{ list_view_obj.add_url }}" class="btn btn-success">添加</a>
     {% endif %}
