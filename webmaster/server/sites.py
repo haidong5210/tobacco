@@ -1,4 +1,5 @@
 import copy
+import json
 from django.conf.urls import url,include
 from django.shortcuts import HttpResponse,render,redirect
 from django.utils.safestring import mark_safe
@@ -56,24 +57,26 @@ class FilterRow:
         path = self.request.path
         param = copy.deepcopy(self.request.GET)
         param._mutable = True
+        #生成全部的url
         if self.comb_obj.field_name in param:
-            val = param.pop(self.comb_obj.field_name)
+            val = param.pop(self.comb_obj.field_name)      #pop拿出来的值是列表
             yield mark_safe('<a href="%s?%s">全部</a>'%(path,param.urlencode()))
             param.setlist(self.comb_obj.field_name, val)
         else:
             yield mark_safe('<a class="active" href="%s?%s">全部</a>' % (path, param.urlencode()))
+        #生成选项的url
         for item in self.data:
             if self.comb_obj.is_choice:
                 pk, text = str(item[0]), item[1]
             else:
                 pk, text = str(item.pk), str(item)
-            if not self.comb_obj.multi:
+            if not self.comb_obj.multi:    #单选
                 param[self.comb_obj.field_name] = pk
                 if current_id == pk:
                     yield mark_safe('<a class="active" href="%s?%s">%s</a>'%(path,param.urlencode(),text))
                 else:
                     yield mark_safe('<a href="%s?%s">%s</a>' % (path, param.urlencode(), text))
-            else:
+            else:    #多选
                 _params = copy.deepcopy(param)
                 id_list = _params.getlist(self.comb_obj.field_name)
                 if pk in id_list:
@@ -376,15 +379,20 @@ class MasterModel(object):
 
     def add_view(self,request,*args,**kwargs):
         model_form_class = self.get_model_form_class()
+        _popbackid = request.GET.get('_popbackid')
         if request.method == "GET":
             form = model_form_class()
             return render(request,"add.html",{"form":form})
         else:
             form = model_form_class(request.POST)
             if form.is_valid():
-                form.save()
-                list_url = "%s?%s"%(self.get_list_url(),self.request.GET.get(self.url_encode_key))
-                return redirect(list_url)
+                add_obj = form.save()
+                if _popbackid:
+                    json_result = {"id":add_obj.pk,"text":str(add_obj),"popbackid":_popbackid}
+                    return render(request,"PopResponse.html",{"json_result":json.dumps(json_result)})
+                else:
+                    list_url = "%s?%s"%(self.get_list_url(),self.request.GET.get(self.url_encode_key))
+                    return redirect(list_url)
             else:
                 return render(request, "add.html", {"form": form})
 
