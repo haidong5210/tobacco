@@ -1,15 +1,21 @@
 <form method="post" novalidate class="form-horizontal">
 {% csrf_token %}
     {% for item in form %}
-         <div class="col-md-6">
+         <div class="col-md-6" style="margin: 10px 0">
             <div class="form-group">
                 <label for="inputEmail3" class="col-sm-2 control-label">{{ item.filed.label }}</label>
                 <div class="col-sm-10 ipt">
                     {% if item.popup  %}
-                        {{ item.filed }}{{ item.filed.errors.0 }}
+                        {{ item.filed }}
+                        <div style="background-color: #ffb4b4;position: absolute;right: 15px;left: 15px;color: white">
+                        {{ item.filed.errors.0 }}
+                        </div>
                         <a onclick="popUp('{{ item.popurl }}')"><span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span></a>
                     {% else %}
-                        {{ item.filed }}{{ item.filed.errors.0 }}
+                        {{ item.filed }}
+                        <div style="background-color: #ffb4b4;position: absolute;right: 15px;left: 15px;color: white">
+                        {{ item.filed.errors.0 }}
+                        </div>
                     {% endif %}
                 </div>
               </div>
@@ -23,7 +29,7 @@
     function popupCallback(data) {
         var id=data.popbackid;
         var option = '<option selected value="'+data.id+'">'+data.text+'</option>';
-        $("#"+id).append(option)
+        $("#"+id).append(option).children(":first").removeAttr("selected")
     }
     function popUp(url) {
         var popupPage = window.open(url, url, "status=1, height:500, width:600, toolbar=0, resizeable=0");

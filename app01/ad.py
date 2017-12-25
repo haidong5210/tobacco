@@ -26,13 +26,14 @@ class MyMasterModel(sites.MasterModel):
         pk_list = request.POST.getlist("pk")
         models.UserInfo.objects.filter(id__in=pk_list).delete()
     del_catch.text="批量删除"
-    # catch_list = [del_catch,]
-    # show_catch = True
+    catch_list = [del_catch,]
+    show_catch = True
     comb_list = [
                  sites.PacComb("gender",is_choice=True),
                  sites.PacComb("type",multi=True),
                  sites.PacComb("host"),
                  ]
+    edit_link = ['username']
 sites.site.register(models.UserInfo, MyMasterModel)
 
 

@@ -1,21 +1,23 @@
 import copy
 import json
-from django.conf.urls import url,include
-from django.shortcuts import HttpResponse,render,redirect
-from django.utils.safestring import mark_safe
-from django.urls import reverse
-from django.forms import ModelForm
-from tobacco.page.pager1 import Pagination
-from django.http import QueryDict
+
+from django.conf.urls import url, include
+from django.db.models import ForeignKey, ManyToManyField
 from django.db.models import Q
-from django.db.models import ForeignKey,ManyToManyField
+from django.forms import ModelForm
+from django.http import QueryDict
+from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.utils.safestring import mark_safe
+
+from webmaster.page.pager import Pagination
 
 
 class PacComb:
     """
     对comb_list的数据封装的类
     """
-    def __init__(self,field_name,multi=False,condition=None,is_choice=False):
+    def __init__(self,field_name,multi=False,condition=None,is_choice=False,text_func_name=None, val_func_name=None):
         """
         封装comb_list内的数据
         :param field_name: 字段名
@@ -27,6 +29,8 @@ class PacComb:
         self.multi = multi
         self.condition = condition
         self.is_choice = is_choice
+        self.text_func_name = text_func_name
+        self.val_func_name = val_func_name
 
     def get_queryset(self,_field):
         if not self.condition:
@@ -44,8 +48,8 @@ class FilterRow:
     """
     def __init__(self,paccomb_obj, data, request):
         """
-        :param paccomb_obj: comb——list里存的PacComb的对象
-        :param data:  对应字段的所有信息
+        :param paccomb_obj: comb_list里存的PacComb的对象
+        :param data:  对应comb_list里字段的表的所有数据queryset
         :param request:为了得到request.GET
         """
         self.comb_obj = paccomb_obj
@@ -65,11 +69,12 @@ class FilterRow:
         else:
             yield mark_safe('<a class="active" href="%s?%s">全部</a>' % (path, param.urlencode()))
         #生成选项的url
-        for item in self.data:
+        for field_obj in self.data:
             if self.comb_obj.is_choice:
-                pk, text = str(item[0]), item[1]
+                pk, text = str(field_obj[0]), field_obj[1]
             else:
-                pk, text = str(item.pk), str(item)
+                pk = self.comb_obj.val_func_name(field_obj) if self.comb_obj.val_func_name else str(field_obj.pk)
+                text =self.comb_obj.text_func_name(field_obj) if self.comb_obj.text_func_name else str(field_obj)
             if not self.comb_obj.multi:    #单选
                 param[self.comb_obj.field_name] = pk
                 if current_id == pk:
@@ -108,6 +113,8 @@ class PacListView(object):
         self.get_catch_list = master_obj.get_catch_list()             #得到批量操作的列表
         self.show_catch = master_obj.get_show_catch()                 #是否展示批量操作框
         self.comb_list = master_obj.get_comb_list()                   #组合搜索
+        self.edit_link = master_obj.get_edit_link()
+        self.parm = master_obj.parm
 
     def get_catch(self):
         """
@@ -140,10 +147,12 @@ class PacListView(object):
             if self.get_list_display:
                 for filed_name in self.get_list_display:
                     if isinstance(filed_name, str):
-                        if hasattr(obj, filed_name):
-                            field_list.append(getattr(obj, filed_name))
+                        text = getattr(obj, filed_name)
                     else:
-                        field_list.append(filed_name(self.master_obj, obj))
+                        text = filed_name(self.master_obj, obj)
+                    if filed_name in self.edit_link:
+                        text = self.get_edit_url(obj.id,text)
+                    field_list.append(text)
             else:
                 field_list.append(obj)
             data_list.append(field_list)
@@ -158,7 +167,7 @@ class PacListView(object):
 
     def combinatorial(self):
         """
-        通过数据库操作返回每个表中的数据
+        展示组合搜索tag
         :return:
         """
         for paccomb_obj in self.comb_list:
@@ -171,12 +180,22 @@ class PacListView(object):
                 row = FilterRow(paccomb_obj,paccomb_obj.get_choice(_field),self.request)
             yield row
 
+    def get_edit_url(self,pk,text,):
+        """
+        获取修改的url
+        :param pk: 当前行的id
+        :param text: 当前对应的文本
+        :return:
+        """
+        return mark_safe("<a href='%s?%s'>%s</a>" % (self.master_obj.get_edit_url(pk), self.parm.urlencode(),text))
+
 
 class MasterModel(object):
     list_display = []      #显示那几个列，字段
     condition_list = []    #搜索对应的字段
     catch_list = []        #批量执行那个操作
     comb_list = []          #组合搜索
+    edit_link = []          #编辑的字段是哪个
     show_add_btn = True
     model_form_class = None
     show_search_input = False
@@ -197,7 +216,7 @@ class MasterModel(object):
         data = []
         if self.list_display:
             data.extend(self.list_display)
-            data.append(MasterModel.edit)
+            # data.append(MasterModel.edit)
             data.append(MasterModel.delete)
             data.insert(0, MasterModel.check)
         return data
@@ -345,6 +364,12 @@ class MasterModel(object):
             result.extend(self.comb_list)
         return result
 
+    def get_edit_link(self):
+        result = []
+        if self.edit_link:
+            result.extend(self.edit_link)
+        return result
+
     def list_view(self,request,*args,**kwargs):
         """
         展示页面
@@ -361,7 +386,7 @@ class MasterModel(object):
             ret = catch_func(request)
             if ret:
                 return ret
-        #处理搜索
+        #处理组合搜索
         comb_condition = {}
         option_list = self.get_comb_list()
         for key in request.GET.keys():
@@ -388,7 +413,7 @@ class MasterModel(object):
             if form.is_valid():
                 add_obj = form.save()
                 if _popbackid:
-                    json_result = {"id":add_obj.pk,"text":str(add_obj),"popbackid":_popbackid}
+                    json_result = {"id":add_obj.id,"text":str(add_obj),"popbackid":_popbackid}
                     return render(request,"PopResponse.html",{"json_result":json.dumps(json_result)})
                 else:
                     list_url = "%s?%s"%(self.get_list_url(),self.request.GET.get(self.url_encode_key))
